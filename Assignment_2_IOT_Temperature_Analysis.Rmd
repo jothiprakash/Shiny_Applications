@@ -1,0 +1,129 @@
+---
+title: "IOT Temperature Analysis"
+author: Jothi Prakash
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    theme: united
+---
+
+```{r setup, include=FALSE}
+
+library(flexdashboard)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(reshape2)
+
+```
+
+
+```{r}
+setwd("D:/Data Visualization/Assignments/")
+
+temp_data <- read.csv("data_iot_temperature.csv")
+
+
+```
+
+rows
+-----------------------------------------------------------------------
+
+### RECORD OF YEAR
+```{r}
+valueBox(2017,caption = "Year",icon = "fa-calendar",color = "gold")
+```
+
+
+### TEMPERATURE RANGE IN DATA
+
+```{r}
+valueBox("20-30",icon ="fa-tasks",color = "goldenrod")
+```
+
+
+### TEMPERATURE LIMIT
+```{r}
+valueBox("25-30",icon = "fa-bolt",color = "gold")
+```
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+
+### Line Chart for visualising avg temperature
+
+```{r}
+temp_data$day <- format(as.Date(temp_data$date, format="%Y-%m-%d"),"%d")
+
+avg_data <- temp_data %>% group_by(day) %>% summarise(avg_temp = mean(temperature))
+
+graph <- ggplot(avg_data,aes(x = day,y = avg_temp)) + geom_line(group = 1,colour ="darkgoldenrod4") + geom_point(colour = "hotpink4",size = 1.5) + xlab("Days of month") + ylab("Temperatur Average") + ggtitle("Average Temperature for each Day") 
+
+a <-  graph +theme(panel.background = element_rect(fill = 'lightgoldenrodyellow', colour = 'green'),plot.background = element_rect(fill="snow")) + theme(plot.background = element_blank(),panel.grid.minor = element_blank(),panel.border = element_blank())+theme(axis.line = element_line(color = 'black'))
+
+ggplotly(a)
+```
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+
+### Temperature not occuring in Range of 25-20
+
+```{r}
+
+data <- temp_data %>% group_by(day) %>% mutate(lower_limit = as.numeric(temperature<25) , upper_limit = as.numeric(temperature>30) ) %>% summarise(count_lower_limit = sum(lower_limit == 1), count_upper_limit = sum(upper_limit == 1))
+
+
+
+melt_data <- melt(data,id='day')
+
+
+a <- ggplot(melt_data,aes(day,value,fill = variable)) + geom_bar(stat = "identity") + scale_fill_manual(values = c("lightgoldenrod4","lightgoldenrod1"))+ geom_text(position = position_stack(vjust = 0.5),aes(label = value),size = 2.5) + xlab('Days of Month') + ylab('Count' ) + ggtitle('Temperature Limits not in Range')
+
+z <- a + theme(panel.background = element_rect(fill = 'lightgoldenrodyellow'),plot.background = element_rect(fill="snow")) + theme(plot.background = element_blank(),panel.grid.major = element_blank(),panel.grid.minor = element_blank(),panel.border = element_blank())+theme(axis.line = element_line(color = 'black'))
+
+ggplotly(z)
+```
+
+
+
+### Daywise-Hourly Average Temperature
+
+```{r}
+library(grDevices)
+
+colors <- colorRampPalette(c("navajowhite4","navajowhite"))(15)
+
+temp_data$HOUR <- format(as.POSIXct(temp_data$date, format="%Y-%m-%d %H:%M:%S"),format="%H")
+
+avg <- temp_data %>% group_by(day,HOUR) %>% mutate(avg_temp = mean(temperature))
+
+t <- ggplot(avg,aes(y=HOUR,x=day,fill=factor(-avg_temp)))+geom_tile()+scale_fill_manual(values = colors) + labs(fill = "") + xlab(label = "Day of Month")+ylab(label = "Hour of Day") + ggtitle("visualising Temperature for Day of Month 
+                                                                                                                                   & Hour of Day")
+
+
+tile <- t + theme(panel.background = element_rect(fill = 'lightgoldenrodyellow'),plot.background = element_rect(fill="snow")) + theme(plot.background = element_blank(),panel.grid.major = element_blank(),panel.grid.minor = element_blank(),panel.border = element_blank())+theme(axis.line = element_line(color = 'black'))
+
+ggplotly(tile)
+
+```
+
+
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+### Distribution of Temperature for each Day 
+
+```{r}
+coll <- colorRampPalette(c("orange4","orange3","orange2","orange1"))(30)
+
+a <- ggplot(data = temp_data, aes(x=day, y=temperature)) + geom_boxplot(aes(fill=day))+ scale_fill_manual(values = coll) + labs(fill = "")+ theme(legend.position = "none") + xlab("Day of Month") +ylab("Temperature") +ggtitle(" Distribution of Temperature:One Boxplot per day")
+
+box <- a + theme(panel.background = element_rect(fill = 'lightgoldenrodyellow'),plot.background = element_rect(fill="snow")) + theme(plot.background = element_blank(),panel.grid.major = element_blank(),panel.grid.minor = element_blank(),panel.border = element_blank())+theme(axis.line = element_line(color = 'black'))
+
+
+ggplotly(box)
+
+```
+

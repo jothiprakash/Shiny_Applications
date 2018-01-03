@@ -1,0 +1,294 @@
+---
+title: "ODI Data Analysis"
+author: "Jothi Prakash"
+date: "31 December 2017"
+output: 
+  flexdashboard::flex_dashboard:
+      orientation: rows
+      # Enable the below code only if you want the scroll
+      vertical_layout: scroll
+runtime: shiny
+theme: cosmo
+---
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# Section to install necessary packages if not already installed
+list.of.packages <- c("shiny",
+                      "shinydashboard",
+                      "dplyr",
+                      "ggplot2")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[, "Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+# Section to include necessary packages
+library(shiny)
+library(shinydashboard)
+library(dplyr)
+library(ggplot2)
+```
+
+Action Bar {.sidebar}
+===============================================================
+
+```{r}
+# Overriding the 5MB limit of shiny application
+if(Sys.getenv('SHINY_PORT') == "")
+  options(shiny.maxRequestSize = 10000 * 1024 ^ 2)
+
+# File input section
+fileInput(inputId = "data_path",
+          label = "Please input a CSV file")
+
+# Label for Univariate analysis
+uiOutput("univariate_label")
+
+# Dropdown for Univariate analysis
+uiOutput("univariate_dropdown")
+
+# Label for Bi-variate analysis
+uiOutput("bivariate_label")
+
+# Dropdown - 1 for Bi-Variate analysis
+uiOutput("bivariate_dropdown1")
+
+# Dropdown - 2 for Bi-Variate analysis
+uiOutput("bivariate_dropdown2")
+```
+
+EDA
+===============================================================
+
+Data Preview - Row
+---------------------------------------------------------------
+
+### Data Preview
+
+```{r}
+tableOutput("data_preview")
+```
+
+
+Datatype of columns - Row
+---------------------------------------------------------------
+
+### Numeric columns
+
+```{r}
+tableOutput("numerical_columns")
+```
+
+
+### Non-numeric columns
+
+```{r}
+tableOutput("categorical_columns")
+```
+
+
+Univariate analysis - Row
+---------------------------------------------------------------
+
+### Box Plot
+
+```{r}
+plotOutput("boxplot")
+```
+
+
+### Frequency Distribution
+
+```{r}
+plotOutput("frequency_distribution")
+```
+
+
+Bi-Variate analysis - Row
+-----------------------------------------------------------------
+
+### Scatter Plot
+
+```{r}
+plotOutput("scatterplot")
+```
+
+
+Analysis
+=================================================================
+
+Drop down section
+-----------------------------------------------------------------
+
+### Top ten countries by run
+
+```{r}
+plotOutput("top_ten_countries")
+```
+
+Row
+-----------------------------------------------------------------
+
+### Top ten countries by strike rate
+
+```{r}
+plotOutput("countries_strike_rate")
+```
+
+Top ten players by run
+-----------------------------------------------------------------
+
+### Top ten players by Run
+
+```{r}
+plotOutput("top_players")
+```
+
+Top ten players by strike rate
+----------------------------------------------------------------
+
+### Top ten players by strike rate
+
+```{r}
+plotOutput("player_strike_rate")
+```
+
+
+
+```{r}
+observe({
+  
+  # Verify whether the file path is empty or not
+  if(is.null(input$data_path$datapath))
+    return(NULL)
+  
+  # Read the file from the path selected
+  data <- read.csv(input$data_path$datapath)
+  output$data_preview <- renderTable(head(data))
+  
+  # Get the datatype of all the columns
+  nums = sapply(data, is.numeric)
+  
+  # Get numerical columns only
+  numerical_columns = names(data)[nums]
+  output$numerical_columns = renderTable(numerical_columns)
+  
+  # Get non-numerical columns only
+  categorical_columns = names(data)[!nums]
+  output$categorical_columns = renderTable(categorical_columns)
+  
+  # Univariate label dynamic loading
+  output$univariate_label <- renderUI({
+    tags$h4("Options for Univariate analysis")
+  })
+  
+  # Dynamically rendering numerical dropdown column
+  output$univariate_dropdown <- renderUI({
+    selectInput(inputId = "univariate_dropdown",
+                label = "Select a column",
+                choices = numerical_columns)
+  })
+  
+  # Boxplot section
+  output$boxplot <- renderPlot({
+    boxplot(data[, input$univariate_dropdown])
+  })
+  
+  # Frequency distribution section
+  output$frequency_distribution <- renderPlot({
+    ggplot(data, 
+           aes_string(x = input$univariate_dropdown)) +
+      geom_freqpoly() +
+      xlab(input$univariate_dropdown)
+  })
+  
+  # Bi-variate label dynamic loading
+  output$bivariate_label <- renderUI({
+    tags$h4("Options for Bi-Variate analysis")
+  })
+  
+  # Dynamically rendering numerical dropdown column
+  output$bivariate_dropdown1 <- renderUI({
+    selectInput(inputId = "bivariate_dropdown1",
+                label = "Select a column",
+                choices = numerical_columns)
+  })
+  
+  output$bivariate_dropdown2 <- renderUI({
+    selectInput(inputId = "bivariate_dropdown2",
+                label = "Select a column",
+                choices = numerical_columns)
+  })
+  
+  # Scatterplot section
+  output$scatterplot <- renderPlot({
+    ggplot(data,
+           aes_string(x = input$bivariate_dropdown1,
+                      y = input$bivariate_dropdown2)) +
+      geom_point()
+  })
+  
+  # Top ten countries
+  output$top_ten_countries <- renderPlot({
+    countries <- data %>%
+      group_by(Country) %>% 
+      summarise(total_runs = sum(Runs)) %>% 
+      arrange(desc(total_runs)) %>% 
+      top_n(10)
+    
+    ggplot(countries,
+           aes(x = reorder(Country, -total_runs),
+               y = total_runs)) +
+      geom_bar(stat = "identity") +
+      xlab("Countries") +
+      ylab("Total Runs")
+  })
+  
+  # Top ten countries by strike rate
+  output$countries_strike_rate <- renderPlot({
+    strike_rate <- data %>% 
+      group_by(Country) %>% 
+      summarise(strike.rate = mean(ScoreRate)) %>% 
+      arrange(desc(strike.rate)) %>% 
+      top_n(10)
+    
+    ggplot(strike_rate,
+           aes(x = reorder(Country, -strike.rate),
+               y = strike.rate)) +
+      geom_bar(stat = "identity") +
+      xlab("Countries") +
+      ylab("Strike Rate")
+  })
+  
+  # Top ten players by run
+  output$top_players <- renderPlot({
+    players <- data %>% 
+      group_by(Player) %>% 
+      summarise(total_runs = sum(Runs)) %>% 
+      arrange(desc(total_runs)) %>% 
+      top_n(10)
+    
+    ggplot(players,
+           aes(x = reorder(Player, -total_runs),
+               y = total_runs)) +
+      geom_bar(stat = "identity") +
+      xlab("Player's Name") +
+      ylab("Total Runs")
+  })
+  
+  # Top ten players by Strike rate
+  output$player_strike_rate <- renderPlot({
+    players <- data %>% 
+      group_by(Player) %>% 
+      summarise(strike.rate = mean(ScoreRate)) %>% 
+      arrange(desc(strike.rate)) %>% 
+      top_n(10)
+    
+    ggplot(players,
+           aes(x = reorder(Player, -strike.rate),
+               y = strike.rate)) +
+      geom_bar(stat = "identity") +
+      xlab("Player") +
+      ylab("Strike Rate")
+  })
+  
+})
+```
